@@ -1,0 +1,3 @@
+FROM node:14.18.0
+WORKDIR /usr/front
+EXPOSE 8080
