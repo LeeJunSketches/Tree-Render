@@ -1,92 +1,80 @@
 <template>
   <div class="page-wrapper">
     <div class="tree-wrapper">
-      <NodeComp :currentNode="treeData" ref="nodeTreeRef" />
+      <Nodes :currentNode="treeData" ref="nodeTreeRef" />
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, nextTick, onMounted, provide, ref } from "vue";
-import { Node as NodeComp } from "@/components/Node";
-import { BinaryTreeNode } from "@/components/Node/types";
-import { NodePositionFilledByDeepth } from "./elements";
-import { treeData as data } from "./data";
 import {
-  getPositionToAdd,
-  getAvaiblePosition,
-  setElementPosition,
-  walkThroughTree,
-} from "./aux";
+  defineComponent,
+  ref,
+  computed,
+  provide,
+  onMounted,
+  nextTick,
+} from "vue";
+import Nodes from "./components/Nodes.vue";
+import { NodePositionFilledByDeepth, OrderHandler } from "./auxiliar/elements";
+import { treeData as data } from "./auxiliar/data";
+import {
+  getCenterPosition,
+  getHeight,
+  getRelativePosition,
+  iterateTreeComponentPre,
+} from "./auxiliar/fn";
 
 export default defineComponent({
   name: "Home",
   setup() {
-    const treeData = ref<BinaryTreeNode<any>>(data);
+    const treeData = computed(() => data);
     const nodesPositions = ref<NodePositionFilledByDeepth>(
       new NodePositionFilledByDeepth()
     );
+    provide("nodesPositions", nodesPositions);
 
-    const setNodesPosition = (node: typeof NodeComp): void => {
-      const nodeDom = node.nodeElement as HTMLElement;
-      const { deepth: deepthString, parent: parentId } = nodeDom.dataset;
+    const nodeTreeRef = ref<InstanceType<typeof Nodes> | null>(null);
 
-      const deepth = Number(deepthString);
-      const parent = parentId ? document.getElementById(parentId) : null;
+    const orderHandler = ref(new OrderHandler());
+    provide("orderHandler", orderHandler);
 
-      if (parent) {
-        const aimPosition = getPositionToAdd(nodeDom, parent);
-        const filledPositions =
-          nodesPositions.value.getPositionsByDeepth(deepth);
-
-        if (filledPositions) {
-          const avaiblePosition = getAvaiblePosition(
-            nodeDom,
-            filledPositions,
-            aimPosition
-          );
-          node.setElementPosition(avaiblePosition, "left");
-        } else node.setElementPosition(aimPosition, "left");
-      }
+    const setOrderNum = (node: InstanceType<typeof Nodes["NodeComponent"]>) => {
+      const { deepth } = node;
+      const nodeOrderNum = orderHandler.value.add(deepth);
+      node.order = nodeOrderNum;
     };
 
-    const centerParentElement = (node: typeof NodeComp) => {
-      const currentPosition = node.nodePosition;
-      const leftChildPosition = node.leftNode?.nodePosition;
-      const rightChildPosition = node.rightNode?.nodePosition;
-      const centeredPosition = leftChildPosition
-        ? leftChildPosition + 50
-        : rightChildPosition
-        ? rightChildPosition - 50
-        : currentPosition;
-      const filledPosition = nodesPositions.value.getPositionsByDeepth(
-        node.nodeInfo.deepth
-      );
+    const setNodePosition = (
+      node: InstanceType<typeof Nodes["NodeComponent"]>
+    ) => {
+      const posX = node.parentId
+        ? getRelativePosition(node)
+        : getCenterPosition(node);
+      node.setElementPosition(posX);
 
-      // node.setElementPosition(centeredPosition, "left");
-
-      console.log("******************", node.nodeElement, {
-        currentPosition,
-        leftChildPosition,
-        rightChildPosition,
-        centeredPosition,
-        filledPosition,
-      });
+      const posY = getHeight(node.deepth);
+      node.setElementPosition(posY, "top");
     };
-
-    const nodeTreeRef = ref<InstanceType<typeof NodeComp> | null>(null);
 
     onMounted(async () => {
-      walkThroughTree(nodeTreeRef.value, setNodesPosition);
-      // walkThroughTree(nodeTreeRef.value, centerParentElement);
+      if (nodeTreeRef.value) {
+        iterateTreeComponentPre(
+          nodeTreeRef.value as InstanceType<typeof Nodes>,
+          setOrderNum
+        );
+        await nextTick();
+        iterateTreeComponentPre(
+          nodeTreeRef.value as InstanceType<typeof Nodes>,
+          setNodePosition
+        );
+      }
     });
-
-    provide("nodesPositions", nodesPositions);
 
     return { treeData, nodeTreeRef };
   },
   components: {
-    NodeComp,
+    Nodes,
   },
 });
 </script>

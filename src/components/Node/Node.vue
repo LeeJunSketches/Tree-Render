@@ -5,26 +5,12 @@
     ref="nodeElement"
     :data-parent="parentId"
     :data-side="side"
-    :data-deepth="nodeInfo.deepth"
-    :data-order="nodeInfo.order"
+    :data-deepth="deepth"
+    :data-order="order"
   >
     <div class="key-wrapper">{{ currentNode.key }}</div>
-    <Arrow v-if="parentId" />
+    <Arrow v-if="parentId" :inclination="arrowInclination" />
   </div>
-  <Node
-    v-if="currentNode.left"
-    :parentId="nodeId"
-    :side="Side.LEFT"
-    :currentNode="currentNode.left"
-    ref="leftNode"
-  />
-  <Node
-    v-if="currentNode.right"
-    :parentId="nodeId"
-    :side="Side.RIGHT"
-    :currentNode="currentNode.right"
-    ref="rightNode"
-  />
 </template>
 
 <script lang="ts">
@@ -32,101 +18,110 @@ import {
   computed,
   defineComponent,
   inject,
-  onMounted,
   PropType,
   Ref,
   ref,
-  toRefs,
+  toRef,
+  watch,
 } from "vue";
-import { Side, BinaryTreeNode } from "./types";
-import Arrow from "./Arrow.vue";
-import { NodePositionFilledByDeepth } from "@/views/BinarySearchTree/elements";
+import { Side, TreeNode } from "./auxiliar/types";
+import Arrow from "./components/Arrow.vue";
+import { NodePositionFilledByDeepth } from "@/views/BinarySearchTree/auxiliar/elements";
+import { getCenteredPosition } from "./auxiliar/fn";
 
 export default defineComponent({
   name: "Node",
   props: {
     parentId: String,
-    currentNode: Object as PropType<BinaryTreeNode<unknown | number | string>>,
+    currentNode: Object as PropType<TreeNode<number | string>>,
     side: Number as PropType<Side>,
+    deepth: { type: Number, required: true },
+    elementInstance: Object as PropType<InstanceType<any>>,
+    leftChild: Object as PropType<InstanceType<any>>,
+    rightChild: Object as PropType<InstanceType<any>>,
+    parentNode: Object as PropType<InstanceType<any>>,
   },
   setup(props) {
+    const el = toRef(props, "elementInstance");
+    const deepth = toRef(props, "deepth") as Ref<number>;
+
     const nodeElement = ref<InstanceType<typeof HTMLElement> | null>(null);
-    const leftNode = ref<any>(null);
-    const rightNode = ref<any>(null);
     const nodesPositions =
       inject<Ref<NodePositionFilledByDeepth>>("nodesPositions");
-
-    const { parentId, side } = toRefs(props);
-    const nodeInfo = computed(() => {
-      if (!parentId.value) return { deepth: 0, order: 1 };
-      const [parentIdNum] = parentId.value.split("node_").filter((i) => i);
-      const [deepth, parentOrder] = parentIdNum.split("-");
-      const toAdd = side.value === Side.LEFT ? -1 : 0;
-
-      const order = Number(parentOrder) * 2 + toAdd;
-
-      return { deepth: Number(deepth) + 1, order };
-    });
-    const nodeId = computed<string>(() => {
-      if (!parentId.value) return "node_0-1";
-      return `node_${nodeInfo.value.deepth}-${nodeInfo.value.order}`;
-    });
+    const order = ref(0);
     const nodePosition = ref(0);
+    const nodeId = computed(() => `${deepth.value}-${order.value}`);
 
-    // const moveNextNode = (position: number, order: number) => {
+    const childrenPosition = computed(() => ({
+      left: (props.leftChild as any)?.nodePosition,
+      right: (props.rightChild as any)?.nodePosition,
+    }));
 
-    // }
+    const arrowInclination = computed(() => {
+      const parentPosition = (props.parentNode as any)?.nodePosition;
+      const relativeParent = nodePosition.value - parentPosition;
+      const tan = -500 / relativeParent;
+      const degree = Math.atan(tan) * (180 / Math.PI);
 
-    const setElementPosition = (position: number, sideName: "left" | "top") => {
-      (nodeElement.value as InstanceType<typeof HTMLElement>).style[
-        sideName
-      ] = `${position}px`;
-      if (sideName === "left") {
-        nodePosition.value = position;
-        nodesPositions?.value.addPosition(
-          nodeInfo.value.deepth,
-          nodeInfo.value.order,
-          position
-        );
-      }
-    };
-
-    const setNodePosition = () => {
-      const centralizeNode = (node: HTMLElement) => {
-        const nodePosition = node.getBoundingClientRect();
-        const posX = document.body.clientWidth / 2 - nodePosition.width / 2;
-        setElementPosition(posX, "left");
-      };
-
-      const setDeepthHeight = () => {
-        const posY = Number(nodeInfo.value.deepth) * 50;
-        setElementPosition(posY, "top");
-      };
-
-      if (nodeElement.value) {
-        if (!parentId.value && nodeId.value) centralizeNode(nodeElement.value);
-        else setDeepthHeight();
-      }
-    };
-
-    onMounted(() => {
-      setNodePosition();
-      console.log(
-        "*****************************@@@@@@@@@@@@@@@@@@@",
-        nodeInfo.value,
-        leftNode.value?.leftNode?.$parent?.nodeInfo
-      );
+      return degree;
     });
+
+    const arrowHeight = computed(() => []);
+
+    watch(
+      childrenPosition,
+      ({ left, right }) => {
+        const posX = getCenteredPosition(left, right);
+        setElementPosition(posX);
+      },
+      { deep: true }
+    );
+
+    const setElementPosition = (
+      position: number,
+      sideName: "left" | "top" = "left"
+    ) => {
+      if (sideName === "left") {
+        nodesPositions?.value.addPosition(deepth.value, order.value, position);
+
+        const pos = nodesPositions?.value
+          .getPositionsByDeepth(deepth.value)
+          .positions.find(({ order: o }) => o === order.value)
+          ?.position as number;
+
+        nodePosition.value = pos;
+
+        (
+          nodeElement.value as InstanceType<typeof HTMLElement>
+        ).style.left = `${pos}px`;
+      } else {
+        (
+          nodeElement.value as InstanceType<typeof HTMLElement>
+        ).style.top = `${position}px`;
+      }
+    };
+
+    const nodeHeight = computed(() => getHeight(el.value));
+
+    const getHeight = (node: any): number => {
+      if (!node) return -1;
+      return (
+        Math.max(
+          getHeight(node.leftChild?.nodeComponent),
+          getHeight(node.rightChild?.nodeComponent)
+        ) + 1
+      );
+    };
 
     return {
       nodeId,
       Side,
       nodeElement,
-      nodeInfo,
-      leftNode,
-      rightNode,
       nodePosition,
       setElementPosition,
+      order,
+      nodeHeight,
+      arrowInclination,
     };
   },
   components: {

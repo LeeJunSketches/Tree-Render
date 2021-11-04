@@ -1,29 +1,12 @@
-# render
+## Overview
+
+- It renders a Binary Tree, just provide the tree data in: `/src/views/BinarySearchTree/auxiliar/data.ts`
 
 ## Project setup
-```
-yarn install
-```
 
-### Compiles and hot-reloads for development
-```
-yarn serve
-```
+- Use the remote container configured.
+- Run: `yarn install`
 
-### Compiles and minifies for production
-```
-yarn build
-```
+### Using the app
 
-### Run your unit tests
-```
-yarn test:unit
-```
-
-### Lints and fixes files
-```
-yarn lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+- Run: `yarn serve`
